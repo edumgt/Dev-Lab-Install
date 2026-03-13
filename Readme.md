@@ -30,7 +30,7 @@ wsl -l -v
 - https://learn.microsoft.com/windows/wsl/install
 
 ### Playwright 캡처
-![WSL 설치 페이지](browser:/tmp/codex_browser_invocations/2a3de15839acebbe/artifacts/images/wsl-install-page.png)
+![WSL 설치 페이지](https://image.thum.io/get/width/1400/https://learn.microsoft.com/windows/wsl/install)
 
 ---
 
@@ -60,7 +60,7 @@ source .venv/bin/activate
 - https://www.python.org/downloads/
 
 ### Playwright 캡처
-![Python 다운로드 페이지](browser:/tmp/codex_browser_invocations/28626ebf368157fd/artifacts/images/python-download-page.png)
+![Python 다운로드 페이지](https://image.thum.io/get/width/1400/https://www.python.org/downloads/)
 
 ---
 
@@ -86,7 +86,7 @@ npm config set init-license "MIT"
 - https://nodejs.org/en/download
 
 ### Playwright 캡처
-![Node.js 다운로드 페이지](browser:/tmp/codex_browser_invocations/1d42d9efd4a2723f/artifacts/images/nodejs-download-page.png)
+![Node.js 다운로드 페이지](https://image.thum.io/get/width/1400/https://nodejs.org/en/download)
 
 ---
 
@@ -112,7 +112,7 @@ docker run hello-world
 - https://www.docker.com/products/docker-desktop/
 
 ### Playwright 캡처
-![Docker Desktop 다운로드 페이지](browser:/tmp/codex_browser_invocations/02d9c6bc16ba15eb/artifacts/images/docker-desktop-page.png)
+![Docker Desktop 다운로드 페이지](https://image.thum.io/get/width/1400/https://www.docker.com/products/docker-desktop/)
 
 ---
 
@@ -133,7 +133,7 @@ javac --version
 - https://www.oracle.com/java/technologies/downloads/
 
 ### Playwright 캡처
-![Java 다운로드 페이지](browser:/tmp/codex_browser_invocations/101c1236e0b069a6/artifacts/images/java-oracle-download-page.png)
+![Java 다운로드 페이지](https://image.thum.io/get/width/1400/https://www.oracle.com/java/technologies/downloads/)
 
 ---
 
