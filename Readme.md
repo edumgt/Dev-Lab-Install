@@ -454,3 +454,230 @@ mvn clean package
 - **IDE/Editor**: VS Code
 - **Version Control**: Git + GitHub
 
+---
+
+## 25. 최종 추천 아키텍처
+
+### 목표 환경
+
+| 항목 | 구성 |
+|------|------|
+| 호스트 OS | Windows PC |
+| 가상화 | VMware Workstation (Player/Pro) |
+| 게스트 OS | Ubuntu 22.04 / 24.04 |
+| Kubernetes | 단일 노드 (kubeadm) |
+| 운영 서비스 | Harbor · Nexus · Jupyter |
+| 외부 노출 | MetalLB + NGINX Ingress |
+
+### 개발/테스트 환경 권장 구성
+
+| 항목 | 권장 값 |
+|------|---------|
+| VMware 네트워크 | Bridged (권장) 또는 NAT |
+| Ingress Controller | NGINX Ingress |
+| LoadBalancer 구현 | MetalLB |
+| 이름 해석 | Windows hosts 파일 |
+
+### 운영/사내망 환경 권장 구성
+
+| 항목 | 권장 값 |
+|------|---------|
+| 가상화 플랫폼 | VMware 또는 KVM/Proxmox |
+| Ingress Controller | NGINX Ingress |
+| LoadBalancer 구현 | MetalLB |
+| 이름 해석 | 사내 DNS |
+
+### 접속 흐름
+
+```
+사용자 브라우저
+  ↓
+web.test.com / jup.test.com / harbor.test.com / nexus.test.com
+  ↓
+hosts 파일 또는 사내 DNS
+  ↓
+MetalLB IP  (예: 192.168.253.200)
+  ↓
+NGINX Ingress Controller
+  ↓
+ClusterIP Service
+  ↓
+Pod
+```
+
+### 핵심 구성 요소 요약
+
+| 구성 요소 | 역할 |
+|-----------|------|
+| VMnet1 | Host-only — 내부 테스트 전용 |
+| VMnet8 | NAT — 인터넷/개발용 |
+| Bridged | 실제 네트워크 연결 — 운영형에 적합 |
+| Pod IP (`10.244.x.x`) | Kubernetes 내부 전용 |
+| ClusterIP (`10.96.x.x`) | 클러스터 내부 서비스 통신용 |
+| MetalLB IP | 외부 접속용 가상 LoadBalancer IP |
+| Ingress | 도메인 기반 라우팅 (가상 호스트) |
+| Windows hosts | 개발·테스트용 이름 해석 |
+| 사내 DNS | 운영용 이름 해석 |
+
+---
+
+## 26. 실전 예시: VMware NAT 환경에서 Kubernetes 외부 접속
+
+### 현재 VMware 네트워크 예시
+
+```
+VMnet1 (Host-only) : 192.168.111.1/24
+VMnet8 (NAT)       : 192.168.253.1/24
+```
+
+VM이 NAT(VMnet8)에 연결된 경우, 게스트 VM 안에서 아래와 같은 주소를 받습니다.
+
+```
+게스트 VM IP       : 192.168.253.128  (DHCP 자동 할당)
+```
+
+### Kubernetes 내부 주소 구조
+
+```
+Pod IP         = 10.244.x.x     ← 클러스터 내부 전용
+Service IP     = 10.96.x.x      ← 클러스터 내부 전용
+MetalLB IP     = 192.168.253.200 ← 외부(Windows)에서 접근 가능
+```
+
+### Windows hosts 파일 설정 예시
+
+파일 경로: `C:\Windows\System32\drivers\etc\hosts`
+
+```
+# Kubernetes 서비스 도메인 (MetalLB Ingress IP)
+192.168.253.200  web.test.com
+192.168.253.200  jup.test.com
+192.168.253.200  harbor.test.com
+192.168.253.200  nexus.test.com
+```
+
+> **참고**: hosts 파일 편집은 메모장을 **관리자 권한으로 실행** 한 뒤 위 경로를 열어야 합니다.
+
+### 결론
+
+브라우저에서 사용자가 실제로 접속하는 주소는 Pod IP나 ClusterIP가 아니라,
+**MetalLB IP에 연결된 Ingress 도메인**입니다.
+
+---
+
+## 27. Ubuntu VM 단일 노드 Kubernetes 자동 설치
+
+### 설치 스크립트 개요
+
+이 저장소에는 VMware VM(Ubuntu 22.04/24.04) 위에 단일 노드 Kubernetes 클러스터를
+자동으로 구성하는 셸 스크립트 `k8s-single-node-setup.sh` 가 포함되어 있습니다.
+
+**설치 구성 요소**
+
+| 구성 요소 | 버전/비고 |
+|-----------|-----------|
+| containerd | 최신 안정 버전 (Docker apt repo) |
+| kubeadm / kubelet / kubectl | Kubernetes 1.29 |
+| Flannel CNI | 최신 안정 버전 |
+| MetalLB | v0.14.5 |
+| NGINX Ingress Controller | v1.10.1 |
+
+### 사전 요구 사항
+
+| 항목 | 최소 사양 |
+|------|----------|
+| OS | Ubuntu 22.04 LTS 또는 24.04 LTS |
+| CPU | 2코어 이상 |
+| RAM | 4 GB 이상 (8 GB 권장) |
+| Disk | 30 GB 이상 |
+| 네트워크 | 인터넷 접속 가능 (패키지 다운로드) |
+| 권한 | sudo 권한 필요 |
+
+### 설치 방법
+
+#### 1단계: 스크립트 다운로드 (또는 저장소 클론)
+
+```bash
+git clone https://github.com/edumgt/Dev-Lab-Install.git
+cd Dev-Lab-Install
+```
+
+#### 2단계: MetalLB IP 범위 확인 및 수정 (선택)
+
+VM 이 사용하는 네트워크 대역에 맞게 스크립트 상단의 변수를 수정합니다.
+
+```bash
+# k8s-single-node-setup.sh 상단 변수 (기본값 예시)
+METALLB_IP_RANGE="192.168.253.200-192.168.253.220"
+```
+
+VM 의 실제 IP 대역 확인:
+
+```bash
+ip addr show        # VM 내부에서 실행
+```
+
+#### 3단계: 스크립트 실행
+
+```bash
+chmod +x k8s-single-node-setup.sh
+sudo ./k8s-single-node-setup.sh
+```
+
+스크립트는 아래 8단계를 순서대로 자동 진행합니다.
+
+```
+1/8  시스템 기본 설정  (swap 비활성화, 커널 모듈, sysctl)
+2/8  containerd 설치
+3/8  kubeadm / kubelet / kubectl 설치
+4/8  kubeadm init  (단일 노드 클러스터 초기화)
+5/8  Flannel CNI 설치
+6/8  MetalLB 설치 및 IPAddressPool 구성
+7/8  NGINX Ingress Controller 설치
+8/8  설치 결과 출력
+```
+
+#### 4단계: 설치 완료 확인
+
+```bash
+kubectl get nodes -o wide
+kubectl get pods -A
+kubectl get svc -n ingress-nginx
+```
+
+정상 설치 시 출력 예시:
+
+```
+NAME       STATUS   ROLES           AGE   VERSION   INTERNAL-IP       ...
+ubuntu-vm  Ready    control-plane   2m    v1.29.x   192.168.253.128   ...
+```
+
+### Windows hosts 파일 설정
+
+설치 완료 후 스크립트가 출력하는 `Ingress LB IP` 값을 사용하여
+Windows hosts 파일에 도메인을 등록합니다.
+
+**hosts 파일 경로**: `C:\Windows\System32\drivers\etc\hosts`
+
+```
+# ── Kubernetes Ingress (MetalLB) ──────────────────────────
+192.168.253.200  web.test.com
+192.168.253.200  jup.test.com
+192.168.253.200  harbor.test.com
+192.168.253.200  nexus.test.com
+# ─────────────────────────────────────────────────────────
+```
+
+> **편집 방법**: 메모장(Notepad)을 **관리자 권한으로 실행** → 파일 열기 → 위 경로 입력 → 추가 후 저장
+
+### 최종 요약
+
+```
+한 줄 요약
+──────────────────────────────────────────────────────────────
+VMware 환경에서 Kubernetes 서비스를 외부에서 쓰려면,
+VM의 실제 네트워크 대역을 기준으로 MetalLB IP를 만들고,
+그 IP에 Ingress 도메인을 연결하는 방식이 가장 깔끔합니다.
+──────────────────────────────────────────────────────────────
+```
+
