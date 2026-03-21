@@ -42,6 +42,16 @@ python --version
 pip --version
 ```
 
+### 동작 확인 (Hello World)
+```bash
+python -c "print('Hello, World!')"
+```
+
+예상 출력:
+```
+Hello, World!
+```
+
 ### 권장 가상환경 생성
 ```bash
 python -m venv .venv
@@ -66,6 +76,16 @@ source .venv/bin/activate
 ```bash
 node --version
 npm --version
+```
+
+### 동작 확인 (Hello World)
+```bash
+node -e "console.log('Hello, World!')"
+```
+
+예상 출력:
+```
+Hello, World!
 ```
 
 ### npm 초기 설정 예시
@@ -233,22 +253,6 @@ git --version
 VS Code 탐색기(Explorer) 패널에서 Java 소스 파일 구조를 확인하고 실행할 수 있습니다.
 
 ![VS Code Java 프로젝트 탐색기](images/image-10.png)
-
----
-
-## 8) Java 메모리 구조 개요
-
-Java 프로그램 실행 시 JVM은 아래와 같은 메모리 영역을 사용합니다.
-
-| 영역 | 설명 |
-|------|------|
-| Method Area | 클래스 정보, static 변수, 상수 저장 |
-| Heap Area | 객체(인스턴스), 배열 저장 – GC 관리 |
-| Stack | 스레드별 지역변수, 매개변수, 리턴값 저장 |
-| PC Register | 스레드별 현재 실행 위치(명령어 주소) |
-| Native Method Stack | 네이티브(C/C++) 코드 실행용 스택 |
-
-![Java JVM 메모리 구조](images/image-11.png)
 
 ---
 
