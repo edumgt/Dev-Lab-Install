@@ -578,9 +578,81 @@ MetalLB IP     = 192.168.253.200 ← 외부(Windows)에서 접근 가능
 |-----------|-----------|
 | containerd | 최신 안정 버전 (Docker apt repo) |
 | kubeadm / kubelet / kubectl | Kubernetes 1.29 |
-| Flannel CNI | 최신 안정 버전 |
+| **Calico CNI** | v3.28.0 (Flannel 대체, Tigera Operator 방식) |
+| **Metrics Server** | 최신 안정 버전 (단일 노드 insecure-tls 패치 포함) |
+| **Headlamp** | v0.24.1 (CNCF 인큐베이팅, Helm Chart, LoadBalancer 노출) |
 | MetalLB | v0.14.5 |
 | NGINX Ingress Controller | v1.10.1 |
+
+### Calico vs Flannel 비교
+
+| 항목 | Flannel | Calico |
+|------|---------|--------|
+| 설치 복잡도 | 단순 (단일 YAML) | Tigera Operator 방식 |
+| 네트워크 정책 | ❌ 미지원 | ✅ NetworkPolicy 완전 지원 |
+| 캡슐화 | VXLAN | VXLAN / BGP / IPinIP 선택 가능 |
+| 성능 | 보통 | 높음 (BGP 모드 시 오버헤드 없음) |
+| 멀티 클러스터 | 제한적 | ✅ BGP 피어링 지원 |
+| 운영 환경 채택 | 개발/학습 | 프로덕션 표준 |
+
+> **이 스크립트에서는 VXLANCrossSubnet 캡슐화를 사용합니다.**  
+> (동일 서브넷 내 Pod 간 통신은 오버헤드 없이 직접 라우팅, 서브넷 간에는 VXLAN 사용)
+
+### Headlamp 대시보드 소개
+
+Headlamp는 CNCF Incubating 프로젝트로, 기존 Kubernetes Dashboard의 단점을 개선한
+최신 웹 기반 관리 UI 입니다.
+
+| 항목 | 설명 |
+|------|------|
+| 설치 방식 | Helm Chart (LoadBalancer 타입으로 노출) |
+| 인증 | Service Account 토큰 기반 |
+| 기능 | 리소스 조회·수정, 로그 확인, Shell 접속, 플러그인 시스템 |
+| 접속 URL | `http://<MetalLB-IP>` (MetalLB IP 풀에서 자동 할당) |
+
+**접속 토큰 생성:**
+
+```bash
+# 관리자 ServiceAccount 생성
+kubectl create serviceaccount headlamp-admin -n headlamp
+kubectl create clusterrolebinding headlamp-admin \
+  --clusterrole=cluster-admin \
+  --serviceaccount=headlamp:headlamp-admin
+
+# 토큰 발급 (브라우저 로그인 시 사용)
+kubectl create token headlamp-admin -n headlamp
+```
+
+### Metrics Server 소개
+
+Metrics Server는 `kubectl top` 명령어와 HPA(Horizontal Pod Autoscaler) 동작에 필요한
+CPU / 메모리 사용량 데이터를 kubelet 에서 수집합니다.
+
+```bash
+# 노드 리소스 사용량 확인
+kubectl top nodes
+
+# Pod 리소스 사용량 확인
+kubectl top pods -A
+```
+
+> **단일 노드 주의사항**: 자체 서명 인증서 환경에서 kubelet 메트릭을 수집하기 위해  
+> `--kubelet-insecure-tls` 플래그가 자동으로 패치됩니다.
+
+### 설치 단계 상세
+
+```
+ 1/10  시스템 기본 설정  (swap 비활성화, 커널 모듈, sysctl)
+ 2/10  containerd 설치  (Docker apt repo, SystemdCgroup=true)
+ 3/10  kubeadm / kubelet / kubectl 설치 (pkgs.k8s.io, 버전 고정)
+ 4/10  kubeadm init  (단일 노드 클러스터 초기화, control-plane taint 제거)
+ 5/10  Calico CNI 설치  (Tigera Operator + Installation CR)
+ 6/10  Metrics Server 설치  (kubelet-insecure-tls 패치)
+ 7/10  Headlamp 대시보드 설치  (Helm, LoadBalancer 타입)
+ 8/10  MetalLB 설치 및 IPAddressPool 구성
+ 9/10  NGINX Ingress Controller 설치
+10/10  설치 결과 출력
+```
 
 ### 사전 요구 사항
 
@@ -624,18 +696,7 @@ chmod +x k8s-single-node-setup.sh
 sudo ./k8s-single-node-setup.sh
 ```
 
-스크립트는 아래 8단계를 순서대로 자동 진행합니다.
-
-```
-1/8  시스템 기본 설정  (swap 비활성화, 커널 모듈, sysctl)
-2/8  containerd 설치
-3/8  kubeadm / kubelet / kubectl 설치
-4/8  kubeadm init  (단일 노드 클러스터 초기화)
-5/8  Flannel CNI 설치
-6/8  MetalLB 설치 및 IPAddressPool 구성
-7/8  NGINX Ingress Controller 설치
-8/8  설치 결과 출력
-```
+스크립트는 아래 10단계를 순서대로 자동 진행합니다.
 
 #### 4단계: 설치 완료 확인
 
@@ -643,6 +704,7 @@ sudo ./k8s-single-node-setup.sh
 kubectl get nodes -o wide
 kubectl get pods -A
 kubectl get svc -n ingress-nginx
+kubectl top nodes          # Metrics Server 동작 확인
 ```
 
 정상 설치 시 출력 예시:
@@ -665,6 +727,7 @@ Windows hosts 파일에 도메인을 등록합니다.
 192.168.253.200  jup.test.com
 192.168.253.200  harbor.test.com
 192.168.253.200  nexus.test.com
+192.168.253.200  gitlab.test.com
 # ─────────────────────────────────────────────────────────
 ```
 
@@ -680,4 +743,666 @@ VM의 실제 네트워크 대역을 기준으로 MetalLB IP를 만들고,
 그 IP에 Ingress 도메인을 연결하는 방식이 가장 깔끔합니다.
 ──────────────────────────────────────────────────────────────
 ```
+
+---
+
+## 28. VMware VM에 Nexus Repository Manager 설치
+
+### 설치 목적
+- Maven / npm / Docker / PyPI / Helm 패키지를 사내에서 캐싱·배포하는 범용 아티팩트 저장소
+- 외부 인터넷 없이도 패키지를 프록시·호스팅하여 개발 환경 독립성 확보
+
+### VM 사양 권장
+
+| 항목 | 권장값 |
+|------|-------|
+| OS | Ubuntu 22.04 LTS |
+| CPU | 4코어 이상 |
+| RAM | 8 GB 이상 (JVM 기반) |
+| Disk | 100 GB 이상 (저장소 데이터 포함) |
+| 네트워크 | VMware NAT 또는 Bridged |
+
+### 28-1) Java 17 설치 (Nexus 실행 필수)
+
+```bash
+sudo apt-get update -y
+sudo apt-get install -y openjdk-17-jdk
+
+# 버전 확인
+java -version
+```
+
+### 28-2) Nexus 다운로드 및 설치
+
+```bash
+# 최신 버전 확인: https://help.sonatype.com/en/download.html
+NEXUS_VERSION="3.68.0-04"
+cd /opt
+
+sudo wget -q "https://download.sonatype.com/nexus/3/nexus-${NEXUS_VERSION}-unix.tar.gz"
+sudo tar -zxf "nexus-${NEXUS_VERSION}-unix.tar.gz"
+sudo mv nexus-${NEXUS_VERSION} nexus
+sudo rm -f "nexus-${NEXUS_VERSION}-unix.tar.gz"
+
+# nexus 전용 사용자 생성
+sudo useradd -r -d /opt/nexus -s /bin/false nexus
+sudo chown -R nexus:nexus /opt/nexus /opt/sonatype-work
+```
+
+### 28-3) Nexus systemd 서비스 등록
+
+```bash
+sudo tee /etc/systemd/system/nexus.service > /dev/null <<'EOF'
+[Unit]
+Description=Sonatype Nexus Repository Manager
+After=network.target
+
+[Service]
+Type=forking
+User=nexus
+ExecStart=/opt/nexus/bin/nexus start
+ExecStop=/opt/nexus/bin/nexus stop
+Restart=on-failure
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable nexus
+sudo systemctl start nexus
+```
+
+### 28-4) 초기 접속 및 설정
+
+```bash
+# 서비스 기동 대기 (약 1~2분 소요)
+sudo journalctl -u nexus -f
+
+# 초기 관리자 비밀번호 확인
+sudo cat /opt/sonatype-work/nexus3/admin.password
+```
+
+브라우저에서 접속:
+```
+http://<VM-IP>:8081
+```
+
+| 항목 | 값 |
+|------|-----|
+| 기본 포트 | 8081 |
+| 초기 계정 | admin |
+| 초기 비밀번호 | `/opt/sonatype-work/nexus3/admin.password` 파일 내용 |
+
+### 28-5) Maven 프록시 저장소 생성 예시
+
+Nexus UI → **Administration** → **Repositories** → **Create repository**:
+
+| 저장소 유형 | 이름 (예시) | Remote URL |
+|------------|------------|------------|
+| maven2 (proxy) | maven-central | `https://repo1.maven.org/maven2/` |
+| npm (proxy) | npm-proxy | `https://registry.npmjs.org` |
+| docker (hosted) | docker-hosted | — (내부 Push용) |
+| helm (proxy) | helm-proxy | `https://charts.helm.sh/stable` |
+
+### 28-6) Maven settings.xml 설정 예시
+
+```xml
+<!-- ~/.m2/settings.xml -->
+<settings>
+  <mirrors>
+    <mirror>
+      <id>nexus</id>
+      <mirrorOf>*</mirrorOf>
+      <url>http://<VM-IP>:8081/repository/maven-central/</url>
+    </mirror>
+  </mirrors>
+  <servers>
+    <server>
+      <id>nexus</id>
+      <username>admin</username>
+      <password>your-password</password>
+    </server>
+  </servers>
+</settings>
+```
+
+---
+
+## 29. VMware VM에 Harbor Container Registry 설치
+
+### 설치 목적
+- Docker 이미지를 사내에 저장·관리하는 엔터프라이즈급 컨테이너 이미지 레지스트리
+- 이미지 취약점 스캔(Trivy), RBAC, 복제(Replication) 기능 제공
+
+### VM 사양 권장
+
+| 항목 | 권장값 |
+|------|-------|
+| OS | Ubuntu 22.04 LTS |
+| CPU | 2코어 이상 |
+| RAM | 4 GB 이상 |
+| Disk | 40 GB 이상 |
+| 네트워크 | VMware NAT 또는 Bridged |
+
+### 29-1) Docker 및 Docker Compose 설치
+
+```bash
+sudo apt-get update -y
+sudo apt-get install -y ca-certificates curl gnupg
+
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+  | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
+  | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+sudo apt-get update -y
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+# 현재 사용자를 docker 그룹에 추가
+sudo usermod -aG docker $USER
+newgrp docker
+
+docker --version
+docker compose version
+```
+
+### 29-2) Harbor 설치 파일 다운로드
+
+```bash
+# 최신 버전 확인: https://github.com/goharbor/harbor/releases
+HARBOR_VERSION="v2.11.0"
+cd /opt
+
+sudo wget -q "https://github.com/goharbor/harbor/releases/download/${HARBOR_VERSION}/harbor-online-installer-${HARBOR_VERSION}.tgz"
+sudo tar -zxf "harbor-online-installer-${HARBOR_VERSION}.tgz"
+cd harbor
+```
+
+### 29-3) Harbor 설정 파일 수정
+
+```bash
+cp harbor.yml.tmpl harbor.yml
+```
+
+`harbor.yml` 주요 설정 항목:
+
+```yaml
+# harbor.yml
+
+# VM 의 실제 IP 또는 도메인으로 변경
+hostname: 192.168.253.100
+
+# HTTP 포트 (HTTPS 사용 시 인증서 설정 필요)
+http:
+  port: 80
+
+# HTTPS 비활성화 (테스트 환경 — 주석 처리)
+# https:
+#   port: 443
+#   certificate: /your/certificate/path
+#   private_key: /your/private/key/path
+
+# 관리자 초기 비밀번호
+harbor_admin_password: Harbor12345
+
+# 데이터 저장 경로
+data_volume: /data/harbor
+```
+
+### 29-4) Harbor 설치 및 시작
+
+```bash
+sudo mkdir -p /data/harbor
+sudo ./install.sh --with-trivy   # 취약점 스캐너 Trivy 포함
+
+# 서비스 상태 확인
+docker compose ps
+```
+
+### 29-5) 초기 접속
+
+브라우저에서 접속:
+```
+http://<VM-IP>
+```
+
+| 항목 | 값 |
+|------|-----|
+| 기본 포트 | 80 |
+| 초기 계정 | admin |
+| 초기 비밀번호 | Harbor12345 (harbor.yml 에서 변경 가능) |
+
+### 29-6) Docker 클라이언트에서 Harbor 사용
+
+```bash
+# insecure-registries 설정 (HTTP 사용 시)
+# /etc/docker/daemon.json
+sudo tee /etc/docker/daemon.json > /dev/null <<'EOF'
+{
+  "insecure-registries": ["192.168.253.100"]
+}
+EOF
+sudo systemctl restart docker
+
+# Harbor 로그인
+docker login 192.168.253.100
+# Username: admin
+# Password: Harbor12345
+
+# 이미지 Push 예시
+docker tag myapp:latest 192.168.253.100/library/myapp:latest
+docker push 192.168.253.100/library/myapp:latest
+
+# 이미지 Pull 예시
+docker pull 192.168.253.100/library/myapp:latest
+```
+
+### 29-7) Kubernetes에서 Harbor 이미지 사용
+
+```bash
+# Harbor 인증 정보를 Kubernetes Secret으로 등록
+kubectl create secret docker-registry harbor-secret \
+  --docker-server=192.168.253.100 \
+  --docker-username=admin \
+  --docker-password=Harbor12345 \
+  -n default
+```
+
+Deployment에 `imagePullSecrets` 추가:
+
+```yaml
+spec:
+  template:
+    spec:
+      imagePullSecrets:
+      - name: harbor-secret
+      containers:
+      - name: myapp
+        image: 192.168.253.100/library/myapp:latest
+```
+
+---
+
+## 30. VMware VM에 GitLab CE 설치
+
+### 설치 목적
+- 사내 Git 저장소, CI/CD 파이프라인(GitLab CI), 이슈 트래커를 한 곳에서 운영
+- 코드 검토, 병합 요청(Merge Request), 컨테이너 레지스트리 내장
+
+### VM 사양 권장
+
+| 항목 | 권장값 |
+|------|-------|
+| OS | Ubuntu 22.04 LTS |
+| CPU | 4코어 이상 |
+| RAM | 8 GB 이상 (GitLab 최소 4 GB, 권장 8 GB) |
+| Disk | 50 GB 이상 |
+| 네트워크 | VMware NAT 또는 Bridged |
+
+### 30-1) 의존 패키지 설치
+
+```bash
+sudo apt-get update -y
+sudo apt-get install -y curl openssh-server ca-certificates tzdata perl postfix
+
+# postfix 설치 시 "Internet Site" 선택, 시스템 메일 이름 입력
+```
+
+### 30-2) GitLab 패키지 저장소 등록 및 설치
+
+```bash
+# GitLab CE 공식 설치 스크립트
+curl -fsSL https://packages.gitlab.com/install/repositories/gitlab/gitlab-ce/script.deb.sh \
+  | sudo bash
+
+# external_url 을 VM 의 실제 IP 또는 도메인으로 지정하여 설치
+sudo EXTERNAL_URL="http://192.168.253.101" apt-get install -y gitlab-ce
+```
+
+> 설치에 약 5~10분 소요됩니다.
+
+### 30-3) GitLab 설정 적용
+
+```bash
+# 설정 변경 후 항상 실행
+sudo gitlab-ctl reconfigure
+
+# 서비스 상태 확인
+sudo gitlab-ctl status
+```
+
+### 30-4) 초기 접속 및 비밀번호 확인
+
+```bash
+# 초기 root 비밀번호 확인 (설치 후 24시간 내 파일 자동 삭제됨)
+sudo cat /etc/gitlab/initial_root_password
+```
+
+브라우저에서 접속:
+```
+http://192.168.253.101
+```
+
+| 항목 | 값 |
+|------|-----|
+| 기본 포트 | 80 (HTTP) |
+| 초기 계정 | root |
+| 초기 비밀번호 | `/etc/gitlab/initial_root_password` 파일 내용 |
+
+### 30-5) 주요 gitlab.rb 설정
+
+```bash
+sudo vi /etc/gitlab/gitlab.rb
+```
+
+```ruby
+# 외부 접속 URL
+external_url 'http://192.168.253.101'
+
+# 내장 NGINX 포트 변경 (다른 서비스와 충돌 시)
+nginx['listen_port'] = 80
+
+# 시간대 설정
+gitlab_rails['time_zone'] = 'Asia/Seoul'
+
+# 이메일 발신자 설정 (선택)
+gitlab_rails['gitlab_email_from'] = 'gitlab@example.com'
+
+# 레지스트리 포트 설정 (내장 컨테이너 레지스트리 사용 시)
+registry_external_url 'http://192.168.253.101:5050'
+```
+
+설정 변경 후:
+```bash
+sudo gitlab-ctl reconfigure
+sudo gitlab-ctl restart
+```
+
+### 30-6) GitLab Runner 설치 (CI/CD 실행 에이전트)
+
+```bash
+# GitLab Runner 패키지 저장소 등록
+curl -fsSL https://packages.gitlab.com/install/repositories/runner/gitlab-runner/script.deb.sh \
+  | sudo bash
+
+sudo apt-get install -y gitlab-runner
+
+# Runner 등록 (GitLab UI 에서 토큰 확인: Settings → CI/CD → Runners)
+sudo gitlab-runner register \
+  --url "http://192.168.253.101" \
+  --registration-token "<YOUR_TOKEN>" \
+  --executor "shell" \
+  --description "local-shell-runner" \
+  --tag-list "shell,local"
+
+# Runner 서비스 시작
+sudo systemctl enable gitlab-runner
+sudo systemctl start gitlab-runner
+```
+
+### 30-7) GitLab CI/CD 파이프라인 예시 (.gitlab-ci.yml)
+
+```yaml
+# .gitlab-ci.yml
+stages:
+  - build
+  - test
+  - deploy
+
+variables:
+  IMAGE: 192.168.253.100/library/myapp  # Harbor 레지스트리 경로
+
+build:
+  stage: build
+  script:
+    - docker build -t $IMAGE:$CI_COMMIT_SHA .
+    - docker push $IMAGE:$CI_COMMIT_SHA
+
+test:
+  stage: test
+  script:
+    - docker run --rm $IMAGE:$CI_COMMIT_SHA ./run-tests.sh
+
+deploy:
+  stage: deploy
+  script:
+    - kubectl set image deployment/myapp myapp=$IMAGE:$CI_COMMIT_SHA
+  only:
+    - main
+```
+
+---
+
+## 31. VMware VM에 NAS (OpenMediaVault) 설치
+
+### 설치 목적
+- 사내 파일 공유 서버(NFS / SMB / SFTP)를 VM 위에 구성
+- 개발 환경에서 공유 볼륨, 백업 저장소, ISO 파일 서버로 활용
+- OpenMediaVault(OMV)는 Debian 기반 NAS 전용 OS/소프트웨어
+
+### VM 사양 권장
+
+| 항목 | 권장값 |
+|------|-------|
+| OS | Debian 12 (Bookworm) 또는 Ubuntu 22.04 |
+| CPU | 2코어 이상 |
+| RAM | 2 GB 이상 |
+| OS Disk | 20 GB (시스템용) |
+| 데이터 Disk | 추가 가상 디스크 (50 GB 이상 권장) |
+| 네트워크 | VMware NAT 또는 Bridged |
+
+### 31-1) Debian 기반 VM에 OMV 설치 스크립트
+
+```bash
+# Debian 12 기준 설치 (root 권한 필요)
+sudo apt-get update -y
+sudo apt-get install -y gnupg curl
+
+# OMV 공식 설치 스크립트 실행
+curl -fsSL https://github.com/OpenMediaVault-Plugin-Developers/installScript/raw/master/install \
+  | sudo bash
+```
+
+> 설치에 약 10~20분 소요되며 완료 후 자동 재부팅됩니다.
+
+### 31-2) Ubuntu 22.04 기반 VM에 OMV 6/7 설치
+
+Ubuntu를 사용하는 경우에도 동일한 스크립트로 설치 가능합니다:
+
+```bash
+sudo apt-get update -y && sudo apt-get upgrade -y
+sudo apt-get install -y curl gnupg
+
+# OMV 설치 스크립트 (Ubuntu/Debian 공용)
+curl -fsSL https://github.com/OpenMediaVault-Plugin-Developers/installScript/raw/master/install \
+  | sudo bash
+
+# 설치 중 네트워크 설정 변경 주의: SSH 접속이 끊길 수 있음
+# 재부팅 후 VM 콘솔에서 IP 확인
+```
+
+### 31-3) 초기 접속
+
+브라우저에서 접속 (기본 포트: 80):
+```
+http://<VM-IP>
+```
+
+| 항목 | 값 |
+|------|-----|
+| 기본 포트 | 80 |
+| 초기 계정 | admin |
+| 초기 비밀번호 | openmediavault |
+
+> **최초 로그인 후 반드시 비밀번호를 변경하세요.**
+
+### 31-4) 데이터 디스크 마운트 및 공유 설정
+
+**① VMware에서 추가 가상 디스크 연결**
+1. VM 설정 → **Add** → **Hard Disk** → 새 가상 디스크 추가 (예: 100 GB)
+2. VM 재부팅 후 OMV 웹 UI에서 확인
+
+**② OMV 웹 UI에서 파일 시스템 설정**
+```
+Storage → Disks        → 추가된 디스크 확인 (예: /dev/sdb)
+Storage → File Systems → Create → 포맷 선택 (ext4 권장) → Mount
+```
+
+**③ 공유 폴더 생성**
+```
+Storage → Shared Folders → Add
+  Name: shared-data
+  File system: 위에서 마운트한 파일 시스템 선택
+  Path: /shared-data
+  Permissions: Everyone: read/write
+```
+
+### 31-5) SMB/CIFS 공유 설정 (Windows 파일 공유)
+
+```
+Services → SMB/CIFS → Settings → Enable: ON → Save → Apply
+
+Services → SMB/CIFS → Shares → Add
+  Shared folder: shared-data
+  Name: shared-data
+  Enable: ON
+  Browseable: ON
+  Read only: OFF
+```
+
+Windows 탐색기에서 접속:
+```
+\\<VM-IP>\shared-data
+```
+
+### 31-6) NFS 공유 설정 (Linux/Kubernetes 연동)
+
+```
+Services → NFS → Settings → Enable: ON → Save → Apply
+
+Services → NFS → Shares → Add
+  Shared folder: shared-data
+  Client: 192.168.253.0/24   (접근 허용 네트워크 대역)
+  Privilege: Read/Write
+  Squash: No root squash
+```
+
+Linux 클라이언트에서 마운트:
+```bash
+sudo mount -t nfs 192.168.253.102:/shared-data /mnt/nas
+```
+
+### 31-7) Kubernetes PersistentVolume으로 NAS NFS 연동
+
+```yaml
+# nas-pv.yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nas-nfs-pv
+spec:
+  capacity:
+    storage: 50Gi
+  accessModes:
+    - ReadWriteMany
+  nfs:
+    server: 192.168.253.102    # NAS VM IP
+    path: /shared-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nas-nfs-pvc
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 50Gi
+  volumeName: nas-nfs-pv
+```
+
+```bash
+kubectl apply -f nas-pv.yaml
+kubectl get pv,pvc
+```
+
+---
+
+## 32. VMware 개발 랩 전체 구성 요약
+
+### 권장 VM 구성
+
+| VM 역할 | OS | IP 예시 | 주요 서비스 | RAM |
+|---------|-----|---------|------------|-----|
+| k8s-node | Ubuntu 22.04 | 192.168.253.128 | Kubernetes (kubeadm) | 8 GB |
+| nexus | Ubuntu 22.04 | 192.168.253.100 | Nexus Repository | 8 GB |
+| harbor | Ubuntu 22.04 | 192.168.253.101 | Harbor Registry | 4 GB |
+| gitlab | Ubuntu 22.04 | 192.168.253.102 | GitLab CE | 8 GB |
+| nas | Debian 12 | 192.168.253.103 | OpenMediaVault NAS | 2 GB |
+
+### 서비스 접속 포트 요약
+
+| 서비스 | 접속 URL | 기본 계정 |
+|-------|---------|----------|
+| Kubernetes (Headlamp) | `http://192.168.253.200` | 토큰 기반 |
+| Nexus | `http://192.168.253.100:8081` | admin / (초기 파일 확인) |
+| Harbor | `http://192.168.253.101` | admin / Harbor12345 |
+| GitLab | `http://192.168.253.102` | root / (초기 파일 확인) |
+| NAS (OMV) | `http://192.168.253.103` | admin / openmediavault |
+
+### Windows hosts 파일 전체 예시
+
+`C:\Windows\System32\drivers\etc\hosts`:
+
+```
+# ── Kubernetes Ingress (MetalLB) ──────────────────────────
+192.168.253.200  web.test.com
+192.168.253.200  harbor.test.com
+192.168.253.200  nexus.test.com
+192.168.253.200  gitlab.test.com
+
+# ── 직접 접속 서비스 ──────────────────────────────────────
+192.168.253.100  nexus.lab
+192.168.253.101  harbor.lab
+192.168.253.102  gitlab.lab
+192.168.253.103  nas.lab
+# ──────────────────────────────────────────────────────────
+```
+
+### 전체 아키텍처 흐름
+
+```
+개발자 PC (Windows)
+  │
+  ├── VMware Workstation
+  │     │
+  │     ├── k8s-node   (192.168.253.128)
+  │     │     ├── Kubernetes 클러스터
+  │     │     │     ├── Calico CNI
+  │     │     │     ├── Metrics Server
+  │     │     │     ├── Headlamp Dashboard
+  │     │     │     ├── MetalLB (192.168.253.200~220)
+  │     │     │     └── NGINX Ingress
+  │     │     └── 앱 Pod (spring-hello, node-hello, ...)
+  │     │
+  │     ├── nexus      (192.168.253.100:8081)  → Maven/npm/Docker 프록시
+  │     ├── harbor     (192.168.253.101:80)    → 컨테이너 이미지 레지스트리
+  │     ├── gitlab     (192.168.253.102:80)    → Git + CI/CD
+  │     └── nas        (192.168.253.103:80)    → NFS/SMB 파일 공유
+  │
+  └── 브라우저 접속
+        ├── http://nexus.lab:8081
+        ├── http://harbor.lab
+        ├── http://gitlab.lab
+        ├── http://nas.lab
+        └── http://192.168.253.200  (Headlamp)
+```
+
 
