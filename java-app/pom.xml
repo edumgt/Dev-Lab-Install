@@ -7,37 +7,18 @@
 
     <!-- 프로젝트 정보 -->
     <groupId>com.sample</groupId>
-    <artifactId>pdfbox-log4j2-demo</artifactId>
+    <artifactId>java-samples</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
-    <name>pdfbox-log4j2-demo</name>
+    <name>java-samples</name>
 
     <properties>
         <!-- JDK 버전에 맞춰 수정하세요 -->
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-
-        <!-- Log4j2 버전 -->
-        <log4j2.version>2.23.1</log4j2.version>
     </properties>
-
-    <dependencies>
-        <!-- Log4j2 API -->
-        <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-api</artifactId>
-            <version>${log4j2.version}</version>
-        </dependency>
-
-        <!-- Log4j2 Core (실제 구현체) -->
-        <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-core</artifactId>
-            <version>${log4j2.version}</version>
-        </dependency>
-    </dependencies>
 
     <build>
         <plugins>
