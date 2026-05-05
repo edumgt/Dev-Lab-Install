@@ -53,16 +53,249 @@ Hello, World!
 ```
 
 ### 권장 가상환경 생성
+
+Python 프로젝트마다 독립적인 패키지 환경을 유지하기 위해 가상환경을 사용합니다.
+
+#### venv (내장 모듈 — 가장 기본)
 ```bash
 python -m venv .venv
-# PowerShell
+
+# Windows PowerShell
 .\.venv\Scripts\Activate.ps1
-# macOS/Linux
+
+# macOS / Linux / WSL
 source .venv/bin/activate
+
+# 비활성화
+deactivate
 ```
+
+#### pyenv — 여러 Python 버전 관리 (macOS/Linux/WSL 권장)
+
+pyenv 를 사용하면 프로젝트별로 다른 Python 버전을 사용할 수 있습니다.
+
+```bash
+# pyenv 설치 (Linux/WSL/macOS)
+curl https://pyenv.run | bash
+
+# 셸 설정 추가 (~/.bashrc 또는 ~/.zshrc)
+echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
+echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
+echo 'eval "$(pyenv init -)"' >> ~/.bashrc
+source ~/.bashrc
+
+# 특정 Python 버전 설치
+pyenv install 3.12.4
+pyenv install 3.11.9
+
+# 전역 버전 설정
+pyenv global 3.12.4
+
+# 특정 프로젝트 디렉터리에만 버전 고정
+cd my-project
+pyenv local 3.11.9
+
+# 설치된 버전 목록 확인
+pyenv versions
+```
+
+#### conda / Miniconda — 데이터 분석·ML 환경에 적합
+
+```bash
+# Miniconda 설치 (Linux/WSL)
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh -b -p $HOME/miniconda3
+eval "$($HOME/miniconda3/bin/conda shell.bash hook)"
+conda init
+
+# 환경 생성 및 활성화
+conda create -n myenv python=3.12
+conda activate myenv
+
+# 환경 목록 확인
+conda env list
+
+# 환경 삭제
+conda remove -n myenv --all
+```
+
+---
+
+### pip 기본 설정 및 패키지 관리
+
+```bash
+# pip 최신화 (항상 먼저 실행 권장)
+pip install --upgrade pip
+
+# 사내 또는 사설 PyPI 미러 설정 (Nexus 연동 등)
+pip config set global.index-url http://<NEXUS-IP>:8081/repository/pypi-proxy/simple/
+pip config set global.trusted-host <NEXUS-IP>
+
+# 설치된 패키지 목록 저장 / 복원
+pip freeze > requirements.txt
+pip install -r requirements.txt
+
+# 특정 패키지 설치 / 삭제
+pip install requests fastapi uvicorn
+pip uninstall requests
+
+# 패키지 정보 확인
+pip show requests
+pip list --outdated
+```
+
+#### pyproject.toml 기반 현대적 프로젝트 구성 (PEP 518)
+
+```bash
+# pip 대신 uv (Rust 기반 초고속 패키지 관리자) 사용 권장
+pip install uv
+
+# 새 프로젝트 초기화
+uv init my-project
+cd my-project
+
+# 패키지 추가 / 삭제
+uv add fastapi uvicorn
+uv remove requests
+
+# 가상환경 생성 및 활성화
+uv venv
+source .venv/bin/activate
+
+# pyproject.toml 기반 동기화
+uv sync
+```
+
+---
+
+### 코드 품질 도구 설치 및 설정
+
+```bash
+# 포매터 (코드 스타일 자동 정렬)
+pip install black isort
+
+# 린터 (코드 오류·스타일 검사)
+pip install flake8 pylint
+
+# 타입 검사
+pip install mypy
+
+# 통합 린터 (black + isort + flake8 대체)
+pip install ruff
+
+# 한 번에 설치
+pip install black isort flake8 mypy ruff
+```
+
+**ruff 설정 예시** (`pyproject.toml`):
+
+```toml
+[tool.ruff]
+line-length = 88
+select = ["E", "F", "I", "N", "W"]
+ignore = ["E501"]
+
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"
+```
+
+**실행 예시**:
+```bash
+# 코드 포매팅
+black .
+isort .
+
+# 린트 검사
+ruff check .
+mypy src/
+
+# 자동 수정
+ruff check --fix .
+```
+
+---
+
+### 테스트 환경 구성
+
+```bash
+# pytest 설치
+pip install pytest pytest-cov
+
+# 테스트 실행
+pytest
+
+# 커버리지 포함 실행
+pytest --cov=src --cov-report=html
+
+# 특정 파일/함수만 실행
+pytest tests/test_main.py::test_hello -v
+```
+
+**테스트 파일 예시** (`tests/test_main.py`):
+
+```python
+def add(a: int, b: int) -> int:
+    return a + b
+
+def test_add():
+    assert add(1, 2) == 3
+    assert add(-1, 1) == 0
+```
+
+---
+
+### VS Code Python 개발 환경 설정
+
+**필수 확장(Extension) 설치**:
+
+| 확장 이름 | 용도 |
+|-----------|------|
+| Python (Microsoft) | 기본 Python 지원 |
+| Pylance | 타입 검사, IntelliSense |
+| Black Formatter | 저장 시 자동 포매팅 |
+| Ruff | 빠른 린터 통합 |
+| Python Test Explorer | pytest GUI 실행 |
+
+**`.vscode/settings.json` 권장 설정**:
+
+```json
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+  "editor.formatOnSave": true,
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter"
+  },
+  "python.linting.enabled": true,
+  "python.linting.ruffEnabled": true,
+  "python.testing.pytestEnabled": true,
+  "python.testing.pytestArgs": ["tests"]
+}
+```
+
+---
+
+### Python 개발 환경 구성 요약표
+
+| 구성 요소 | 도구 | 역할 |
+|-----------|------|------|
+| 버전 관리 | pyenv | 여러 Python 버전 전환 |
+| 가상환경 | venv / conda | 프로젝트별 패키지 격리 |
+| 패키지 관리 | pip / uv | 패키지 설치·삭제·동기화 |
+| 포매터 | black / ruff | 코드 스타일 자동 정렬 |
+| 린터 | ruff / flake8 | 코드 오류 검사 |
+| 타입 검사 | mypy | 정적 타입 분석 |
+| 테스트 | pytest | 단위·통합 테스트 |
+| IDE | VS Code + Pylance | 통합 개발 환경 |
 
 ### 공식 사이트
 - https://www.python.org/downloads/
+- https://github.com/pyenv/pyenv
+- https://docs.conda.io/en/latest/miniconda.html
+- https://github.com/astral-sh/uv
+- https://github.com/astral-sh/ruff
 
 ---
 
@@ -1406,3 +1639,666 @@ kubectl get pv,pvc
 ```
 
 
+
+---
+
+## AI Agent 개발 환경 구성 가이드
+
+> AI Agent(LLM 기반 코딩 보조 도구)를 개발 워크플로우에 통합하면 코드 작성, 리뷰, 테스트,
+> 문서화 속도를 크게 높일 수 있습니다. 아래 각 섹션에서 도구별 API 키 발급·설치·사용 방법을
+> 상세히 안내합니다.
+
+---
+
+### A1. Grok (xAI)
+
+#### 개요
+Elon Musk 가 설립한 xAI 에서 개발한 LLM. 실시간 X(Twitter) 데이터 접근 및 코드 생성에 강점.
+
+#### API 키 발급
+1. https://console.x.ai 접속 → 계정 생성 또는 로그인
+2. **API Keys** → **Create API Key** 클릭
+3. 생성된 키를 안전하게 복사
+
+#### 환경 변수 설정
+```bash
+# Linux / macOS / WSL
+echo 'export XAI_API_KEY="xai-your-key-here"' >> ~/.bashrc
+source ~/.bashrc
+
+# Windows PowerShell (영구 설정)
+[System.Environment]::SetEnvironmentVariable("XAI_API_KEY", "xai-your-key-here", "User")
+```
+
+#### Python SDK 설치 및 사용
+
+Grok API 는 OpenAI SDK 와 호환되는 인터페이스를 제공합니다.
+
+```bash
+pip install openai
+```
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key=os.environ["XAI_API_KEY"],
+    base_url="https://api.x.ai/v1",
+)
+
+response = client.chat.completions.create(
+    model="grok-3",
+    messages=[
+        {"role": "system", "content": "You are a helpful coding assistant."},
+        {"role": "user", "content": "Python 에서 REST API 를 호출하는 간단한 예시를 작성해줘."},
+    ],
+)
+print(response.choices[0].message.content)
+```
+
+#### VS Code 연동
+- 확장 마켓플레이스에서 **Continue** 확장 설치
+- Continue 설정 파일(`~/.continue/config.json`)에 Grok 추가:
+
+```json
+{
+  "models": [
+    {
+      "title": "Grok 3",
+      "provider": "openai",
+      "model": "grok-3",
+      "apiBase": "https://api.x.ai/v1",
+      "apiKey": "xai-your-key-here"
+    }
+  ]
+}
+```
+
+---
+
+### A2. Claude (Anthropic)
+
+#### 개요
+Anthropic 이 개발한 LLM. 안전성과 긴 컨텍스트(200K 토큰)에 강점. 코드 분석·리팩터링에 우수.
+
+#### API 키 발급
+1. https://console.anthropic.com 접속 → 계정 생성
+2. **API Keys** → **Create Key** 클릭
+3. 생성된 `sk-ant-...` 키 복사
+
+#### 환경 변수 설정
+```bash
+echo 'export ANTHROPIC_API_KEY="sk-ant-your-key-here"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+#### Python SDK 설치 및 사용
+
+```bash
+pip install anthropic
+```
+
+```python
+import anthropic
+import os
+
+client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+
+message = client.messages.create(
+    model="claude-opus-4-5",
+    max_tokens=1024,
+    messages=[
+        {
+            "role": "user",
+            "content": "아래 Python 코드를 리뷰하고 개선점을 알려줘:\n\ndef add(a,b):\n    return a+b",
+        }
+    ],
+)
+print(message.content[0].text)
+```
+
+#### Claude CLI (claude-code)
+
+```bash
+# Node.js 필요 (npm 환경)
+npm install -g @anthropic-ai/claude-code
+
+# 프로젝트 디렉터리에서 실행
+cd my-project
+claude
+
+# 특정 작업 수행 (비대화형)
+claude -p "이 프로젝트의 README 를 작성해줘"
+```
+
+#### MCP (Model Context Protocol) 서버 연동
+
+Claude 는 MCP 를 통해 로컬 파일 시스템, DB, 외부 API 를 컨텍스트로 활용할 수 있습니다.
+
+```bash
+pip install mcp
+```
+
+`mcp_config.json` 예시:
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/user/projects"]
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_your_token" }
+    }
+  }
+}
+```
+
+#### VS Code 연동
+- **Continue** 확장 설정:
+
+```json
+{
+  "models": [
+    {
+      "title": "Claude Opus 4.5",
+      "provider": "anthropic",
+      "model": "claude-opus-4-5",
+      "apiKey": "sk-ant-your-key-here"
+    }
+  ]
+}
+```
+
+---
+
+### A3. ChatGPT / OpenAI API
+
+#### 개요
+OpenAI 가 개발한 GPT 시리즈. 범용 언어 이해·생성, 코드 생성, 이미지 분석(GPT-4o) 지원.
+
+#### API 키 발급
+1. https://platform.openai.com 접속 → 계정 생성
+2. **API Keys** → **Create new secret key** 클릭
+3. 생성된 `sk-...` 키 복사 (한 번만 표시되므로 즉시 저장)
+4. **Billing** 에서 사용량 한도(Usage limit) 설정 권장
+
+#### 환경 변수 설정
+```bash
+echo 'export OPENAI_API_KEY="sk-your-key-here"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+#### Python SDK 설치 및 사용
+
+```bash
+pip install openai
+```
+
+```python
+from openai import OpenAI
+import os
+
+client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+
+# 텍스트 생성
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[
+        {"role": "system", "content": "You are a senior Python developer."},
+        {"role": "user", "content": "FastAPI 로 CRUD API 를 작성하는 기본 구조를 알려줘."},
+    ],
+    temperature=0.2,
+)
+print(response.choices[0].message.content)
+
+# 스트리밍 출력
+stream = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "파이썬 제너레이터를 설명해줘."}],
+    stream=True,
+)
+for chunk in stream:
+    if chunk.choices[0].delta.content:
+        print(chunk.choices[0].delta.content, end="", flush=True)
+```
+
+#### 비용 관리 팁
+| 모델 | 용도 | 비용 수준 |
+|------|------|----------|
+| gpt-4o-mini | 일반 코드 보조, 간단한 질의 | 낮음 |
+| gpt-4o | 복잡한 코드 분석·생성 | 중간 |
+| o3 / o4-mini | 수학·알고리즘·추론 | 높음 |
+
+```bash
+# 사용량 모니터링 (Usage API)
+curl https://api.openai.com/v1/usage \
+  -H "Authorization: Bearer $OPENAI_API_KEY"
+```
+
+---
+
+### A4. OpenAI Codex CLI
+
+#### 개요
+OpenAI Codex CLI 는 터미널에서 자연어로 코드 작업을 수행하는 AI 코딩 에이전트.
+파일 읽기·수정, 명령 실행, 테스트 실행을 자율적으로 처리.
+
+#### 설치
+
+```bash
+# Node.js 18+ 필요
+npm install -g @openai/codex
+
+# 버전 확인
+codex --version
+```
+
+#### API 키 설정
+
+```bash
+export OPENAI_API_KEY="sk-your-key-here"
+```
+
+#### 기본 사용법
+
+```bash
+# 대화형 실행 (기본 sandbox 모드 — 파일 수정·명령 실행 전 승인 요청)
+codex
+
+# 특정 작업 실행
+codex "이 프로젝트에 pytest 테스트를 추가해줘"
+
+# 전체 자동 승인 모드 (주의: 파일이 자동 수정됨)
+codex --approval-mode full-auto "requirements.txt 기반으로 Docker 이미지를 최적화해줘"
+
+# 특정 모델 사용
+codex --model o4-mini "버그를 찾아서 수정해줘"
+```
+
+#### 승인 모드 옵션
+
+| 모드 | 설명 |
+|------|------|
+| `suggest` (기본) | 모든 변경 전 확인 요청 |
+| `auto-edit` | 파일 수정은 자동, 명령 실행은 확인 |
+| `full-auto` | 모든 작업 자동 처리 (신중하게 사용) |
+
+#### 프로젝트별 지시사항 (`AGENTS.md`)
+
+프로젝트 루트에 `AGENTS.md` 파일을 생성하면 Codex 가 자동으로 읽습니다:
+
+```markdown
+# Project Guidelines for AI Agents
+
+## 코드 스타일
+- Python: black 포매터, ruff 린터 사용
+- 타입 힌트 필수 (mypy strict 모드)
+
+## 테스트
+- 모든 함수에 pytest 테스트 작성
+- `pytest --cov=src` 로 커버리지 확인
+
+## 금지 사항
+- 프로덕션 DB에 직접 연결하지 말 것
+- `.env` 파일 절대 수정 금지
+```
+
+---
+
+### A5. GitHub Copilot
+
+#### 개요
+GitHub + OpenAI 가 공동 개발한 AI 코딩 보조 도구. VS Code, JetBrains IDE, Neovim, CLI 지원.
+개인/팀/기업 플랜 제공 (학생·오픈소스 기여자 무료).
+
+#### 구독 설정
+1. https://github.com/settings/copilot 접속
+2. **Enable GitHub Copilot** 클릭 (무료 체험 또는 구독)
+3. 결제 정보 입력 (Individual: $10/월, Business: $19/월·사용자)
+
+#### VS Code 확장 설치
+
+```bash
+# VS Code 명령 팔레트 (Ctrl+Shift+P)
+# "Extensions: Install Extensions" → "GitHub Copilot" 검색 및 설치
+# 또는 CLI 로 설치
+code --install-extension GitHub.copilot
+code --install-extension GitHub.copilot-chat
+```
+
+**로그인 방법**:
+- VS Code 하단 상태바 Copilot 아이콘 클릭 → **Sign In to GitHub** → 브라우저에서 인증
+
+#### VS Code 에서 Copilot 기능 활용
+
+| 기능 | 단축키 / 사용법 |
+|------|----------------|
+| 코드 자동 완성 | 코드 작성 중 자동 표시 → `Tab` 수락 |
+| 인라인 코드 생성 | `Ctrl+I` → 자연어로 코드 요청 |
+| Copilot Chat | `Ctrl+Alt+I` 또는 사이드바 Chat 패널 |
+| 코드 설명 | 코드 선택 후 우클릭 → **Copilot: Explain This** |
+| 코드 수정 | 코드 선택 후 `Ctrl+I` → "/fix 오류 수정해줘" |
+| 테스트 생성 | 함수 선택 후 Chat에서 `/tests` 입력 |
+| 문서화 | 함수 선택 후 `/doc` 입력 |
+
+#### Copilot Chat 슬래시 명령어
+
+```
+/explain  — 선택 코드 설명
+/fix      — 버그 수정 제안
+/tests    — 테스트 코드 생성
+/doc      — 문서(docstring) 생성
+/simplify — 코드 단순화
+/new      — 새 파일/프로젝트 스캐폴딩
+@workspace — 전체 프로젝트 컨텍스트 참조
+@terminal  — 터미널 명령어 도움
+```
+
+#### GitHub Copilot CLI
+
+```bash
+# 설치
+npm install -g @githubnext/github-copilot-cli
+
+# GitHub 계정 인증
+github-copilot-cli auth
+
+# 사용법
+github-copilot-cli what-the-shell "현재 디렉터리의 Python 파일을 모두 찾아줘"
+github-copilot-cli git-assist "최근 3개 커밋을 하나로 합쳐줘"
+github-copilot-cli explain "docker run -it --rm -v $(pwd):/app python:3.12"
+```
+
+#### `.github/copilot-instructions.md` — 리포지터리별 Copilot 지시사항
+
+프로젝트 내 `.github/copilot-instructions.md` 파일을 생성하면 Copilot 이 자동으로 컨텍스트로 활용합니다:
+
+```markdown
+# Copilot Instructions
+
+이 프로젝트는 FastAPI 기반 REST API 서버입니다.
+
+## 코딩 규칙
+- Python 3.12+ 문법 사용
+- 모든 함수에 타입 힌트 및 docstring 작성
+- 비동기(async/await) 패턴 우선 사용
+- 예외 처리는 커스텀 예외 클래스 사용
+
+## 테스트
+- pytest + httpx 로 API 테스트 작성
+- 모든 엔드포인트에 최소 1개 이상 테스트 필수
+```
+
+#### GitHub Copilot Agent (Coding Agent)
+
+GitHub 이 제공하는 자율 코딩 에이전트. GitHub 이슈를 할당하면 자동으로 코드를 작성하고 PR 을 생성합니다.
+
+**사용 방법**:
+1. GitHub 이슈 생성 (상세한 요구사항 작성)
+2. Assignee 를 **Copilot** 으로 설정
+3. 에이전트가 브랜치 생성 → 코드 구현 → PR 생성
+4. PR 에서 결과 검토 및 리뷰 코멘트 추가
+5. 에이전트가 피드백을 반영하여 추가 수정
+
+**효과적인 이슈 작성 팁**:
+```markdown
+## 작업 내용
+사용자 인증 엔드포인트(`POST /auth/login`)를 구현해주세요.
+
+## 요구사항
+- 이메일 + 패스워드로 로그인
+- JWT 토큰 반환 (access + refresh)
+- 잘못된 인증 정보 시 401 응답
+- bcrypt 로 비밀번호 해시 처리
+
+## 기술 스택
+- FastAPI, SQLAlchemy, python-jose, passlib
+
+## 테스트
+- pytest 로 정상·실패 케이스 모두 커버
+```
+
+---
+
+### A6. Google Gemini
+
+#### 개요
+Google DeepMind 가 개발한 멀티모달 LLM. 코드 생성, 이미지·문서 분석, 긴 컨텍스트(1M 토큰) 지원.
+Gemini API 는 무료 티어 제공.
+
+#### API 키 발급
+1. https://aistudio.google.com 접속 → Google 계정 로그인
+2. **Get API Key** → **Create API key** 클릭
+3. 생성된 `AIza...` 키 복사
+
+#### 환경 변수 설정
+```bash
+echo 'export GEMINI_API_KEY="AIza-your-key-here"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+#### Python SDK 설치 및 사용
+
+```bash
+pip install google-genai
+```
+
+```python
+from google import genai
+import os
+
+client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+
+# 텍스트 생성
+response = client.models.generate_content(
+    model="gemini-2.5-pro",
+    contents="Python 에서 데코레이터 패턴을 설명하고 실용적인 예시를 작성해줘.",
+)
+print(response.text)
+
+# 코드 실행 도구 활성화
+response = client.models.generate_content(
+    model="gemini-2.5-pro",
+    contents="피보나치 수열 100번째 항을 계산해줘.",
+    config={"tools": [{"code_execution": {}}]},
+)
+print(response.text)
+```
+
+#### Gemini CLI
+
+```bash
+# Node.js 필요
+npm install -g @google/gemini-cli
+
+# 인증 (Google 계정 또는 API 키)
+gemini auth login
+
+# API 키 방식
+export GEMINI_API_KEY="AIza-your-key-here"
+
+# 대화형 실행
+gemini
+
+# 비대화형 명령
+gemini -p "이 Python 파일을 분석하고 리팩터링 제안을 해줘" < main.py
+
+# 특정 모델 사용
+gemini --model gemini-2.5-pro "이 코드의 시간복잡도를 분석해줘"
+```
+
+#### VS Code 연동 (Google Cloud Code 확장)
+
+```bash
+code --install-extension GoogleCloudTools.cloudcode
+```
+
+또는 **Continue** 확장으로 Gemini 연동:
+
+```json
+{
+  "models": [
+    {
+      "title": "Gemini 2.5 Pro",
+      "provider": "gemini",
+      "model": "gemini-2.5-pro",
+      "apiKey": "AIza-your-key-here"
+    }
+  ]
+}
+```
+
+#### Gemini 무료 티어 한도 (2025년 기준)
+| 모델 | 무료 요청 한도 |
+|------|--------------|
+| Gemini 2.0 Flash | 1,500 req/day |
+| Gemini 2.5 Pro | 25 req/day |
+| Gemini 1.5 Flash | 1,500 req/day |
+
+---
+
+### A7. AI Agent 도구 비교 및 선택 가이드
+
+| 도구 | 제공사 | 무료 여부 | 주요 강점 | 코딩 특화 기능 |
+|------|--------|----------|-----------|---------------|
+| Grok | xAI | API 유료 | 실시간 데이터, 긴 컨텍스트 | 코드 생성·디버깅 |
+| Claude | Anthropic | API 유료 (무료 웹 UI) | 안전성, 200K 컨텍스트, 코드 리뷰 | claude-code CLI, MCP |
+| ChatGPT | OpenAI | 웹 무료, API 유료 | 범용 이해, GPT-4o 멀티모달 | Function Calling, 플러그인 |
+| Codex CLI | OpenAI | API 비용 발생 | 터미널 자율 에이전트 | 파일 수정·명령 실행 자동화 |
+| Copilot | GitHub/MS | 개인 $10/월 (학생 무료) | IDE 깊은 통합, PR 에이전트 | 자동완성, Chat, Coding Agent |
+| Gemini | Google | 무료 티어 제공 | 1M 컨텍스트, 멀티모달 | 코드 실행 도구 내장 |
+
+#### 시나리오별 권장 조합
+
+**개인 학습 / 사이드 프로젝트**
+- Gemini (무료 티어) + GitHub Copilot (무료 플랜) + Continue 확장
+
+**팀 개발 / 스타트업**
+- GitHub Copilot Business + Claude API (코드 리뷰 자동화) + Codex CLI
+
+**엔터프라이즈 / 사내망**
+- GitHub Copilot Enterprise + OpenAI API (사내 게이트웨이 경유) + MCP 서버
+
+---
+
+### A8. 개인 AI 개발 환경 통합 설정
+
+#### 공통 환경 변수 관리 (`.env` 파일 활용)
+
+프로젝트 루트에 `.env` 파일 생성 (`.gitignore` 에 추가 필수):
+
+```bash
+# .env — 절대 Git 에 커밋하지 마세요!
+OPENAI_API_KEY=sk-your-openai-key
+ANTHROPIC_API_KEY=sk-ant-your-anthropic-key
+GEMINI_API_KEY=AIza-your-gemini-key
+XAI_API_KEY=xai-your-xai-key
+GITHUB_TOKEN=ghp-your-github-token
+```
+
+```bash
+# .gitignore 에 추가
+echo ".env" >> .gitignore
+echo ".env.local" >> .gitignore
+```
+
+**Python 에서 `.env` 로드**:
+
+```bash
+pip install python-dotenv
+```
+
+```python
+from dotenv import load_dotenv
+import os
+
+load_dotenv()  # .env 파일 자동 로드
+
+openai_key = os.getenv("OPENAI_API_KEY")
+anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+```
+
+#### Continue 확장으로 여러 AI 모델 통합 (`~/.continue/config.json`)
+
+VS Code 에서 **Continue** 확장 하나로 모든 AI 모델을 전환하며 사용할 수 있습니다.
+
+```bash
+# Continue 확장 설치
+code --install-extension Continue.continue
+```
+
+```json
+{
+  "models": [
+    {
+      "title": "GPT-4o",
+      "provider": "openai",
+      "model": "gpt-4o",
+      "apiKey": "sk-your-openai-key"
+    },
+    {
+      "title": "Claude Opus 4.5",
+      "provider": "anthropic",
+      "model": "claude-opus-4-5",
+      "apiKey": "sk-ant-your-anthropic-key"
+    },
+    {
+      "title": "Gemini 2.5 Pro",
+      "provider": "gemini",
+      "model": "gemini-2.5-pro",
+      "apiKey": "AIza-your-gemini-key"
+    },
+    {
+      "title": "Grok 3",
+      "provider": "openai",
+      "model": "grok-3",
+      "apiBase": "https://api.x.ai/v1",
+      "apiKey": "xai-your-xai-key"
+    }
+  ],
+  "tabAutocompleteModel": {
+    "title": "Copilot (자동완성)",
+    "provider": "github",
+    "model": "copilot"
+  },
+  "contextProviders": [
+    { "name": "code" },
+    { "name": "docs" },
+    { "name": "diff" },
+    { "name": "terminal" },
+    { "name": "problems" },
+    { "name": "folder" },
+    { "name": "codebase" }
+  ],
+  "slashCommands": [
+    { "name": "edit", "description": "코드 수정" },
+    { "name": "comment", "description": "주석 추가" },
+    { "name": "tests", "description": "테스트 생성" },
+    { "name": "share", "description": "대화 공유" }
+  ]
+}
+```
+
+#### AI 코딩 워크플로우 권장 순서
+
+```
+1. 기능 설계
+   └─ ChatGPT / Claude → 아키텍처 설계, 기술 선택 논의
+
+2. 코드 작성
+   └─ GitHub Copilot → IDE 내 실시간 자동완성·인라인 생성
+
+3. 코드 리뷰
+   └─ Claude / Gemini → 코드 품질·보안·성능 검토
+
+4. 자동화 작업 (반복적 구현)
+   └─ Codex CLI / Copilot Agent → 파일 수정, 테스트 작성, 리팩터링 자동화
+
+5. 배포·운영 질의
+   └─ Grok / Gemini → 최신 기술 동향, 실시간 문서 검색
+```
+
+---
