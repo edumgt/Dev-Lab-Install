@@ -2,6 +2,306 @@
 
 ---
 
+## 0) PC 기본 정보 및 네트워크 환경 확인 (PowerShell)
+
+> 팀 프로젝트를 시작하기 전, 본인 PC의 하드웨어 사양과 네트워크 환경을 파악해두면 개발 환경 구성 및 팀원 간 자원 공유가 훨씬 수월해집니다.  
+> 아래 명령어는 모두 **Windows PowerShell** (또는 **PowerShell 7 이상**) 에서 실행합니다.
+
+---
+
+### 0-1) CPU 정보 확인
+
+```powershell
+# CPU 이름, 코어 수, 논리 프로세서(스레드) 수
+Get-CimInstance -ClassName Win32_Processor |
+    Select-Object Name, NumberOfCores, NumberOfLogicalProcessors, MaxClockSpeed
+
+# 간단 요약 (한 줄)
+(Get-CimInstance Win32_Processor).Name
+```
+
+예상 출력 예시:
+```
+Name                                       NumberOfCores NumberOfLogicalProcessors MaxClockSpeed
+----                                       ------------- ------------------------- -------------
+Intel(R) Core(TM) i7-12700H CPU @ 2.30GHz            14                        20          2304
+```
+
+---
+
+### 0-2) 메모리(RAM) 정보 확인
+
+```powershell
+# 전체 물리 메모리 (GB 단위)
+$mem = Get-CimInstance Win32_ComputerSystem
+[math]::Round($mem.TotalPhysicalMemory / 1GB, 2)
+
+# 현재 사용 중인 메모리와 여유 메모리
+$os = Get-CimInstance Win32_OperatingSystem
+[PSCustomObject]@{
+    "전체(GB)"  = [math]::Round($os.TotalVisibleMemorySize / 1MB, 2)
+    "사용중(GB)" = [math]::Round(($os.TotalVisibleMemorySize - $os.FreePhysicalMemory) / 1MB, 2)
+    "여유(GB)"  = [math]::Round($os.FreePhysicalMemory / 1MB, 2)
+}
+
+# 메모리 슬롯별 세부 정보 (용량, 속도, 제조사)
+Get-CimInstance Win32_PhysicalMemory |
+    Select-Object BankLabel, Capacity, Speed, Manufacturer |
+    Format-Table -AutoSize
+```
+
+---
+
+### 0-3) 디스크 용량 확인
+
+```powershell
+# 드라이브별 전체/사용/여유 용량 (GB)
+Get-PSDrive -PSProvider FileSystem |
+    Select-Object Name,
+        @{N="전체(GB)"; E={[math]::Round($_.Used/1GB + $_.Free/1GB, 2)}},
+        @{N="사용(GB)"; E={[math]::Round($_.Used/1GB, 2)}},
+        @{N="여유(GB)"; E={[math]::Round($_.Free/1GB, 2)}} |
+    Format-Table -AutoSize
+
+# 물리 디스크 모델·타입 확인 (HDD/SSD 구분)
+Get-PhysicalDisk |
+    Select-Object FriendlyName, MediaType, Size, HealthStatus |
+    Format-Table -AutoSize
+
+# 디스크 파티션 상세 정보
+Get-CimInstance Win32_LogicalDisk |
+    Where-Object { $_.DriveType -eq 3 } |
+    Select-Object DeviceID,
+        @{N="전체(GB)"; E={[math]::Round($_.Size/1GB, 2)}},
+        @{N="여유(GB)"; E={[math]::Round($_.FreeSpace/1GB, 2)}},
+        @{N="사용률(%)"; E={[math]::Round((1 - $_.FreeSpace/$_.Size)*100, 1)}} |
+    Format-Table -AutoSize
+```
+
+---
+
+### 0-4) 시스템 전체 요약 한 번에 보기
+
+```powershell
+# OS, CPU, 메모리, 호스트명 한 번에 확인
+Get-ComputerInfo |
+    Select-Object CsName, OsName, OsVersion, OsArchitecture,
+                  CsProcessors, CsNumberOfLogicalProcessors,
+                  @{N="RAM(GB)"; E={[math]::Round($_.CsTotalPhysicalMemory/1GB,2)}}
+
+# Windows 시스템 정보 (전통적인 방법)
+systeminfo | Select-String "Host Name|OS|Processor|Total Physical"
+```
+
+---
+
+### 0-5) 네트워크 어댑터 목록 확인
+
+```powershell
+# 활성화된 네트워크 어댑터 전체 목록
+Get-NetAdapter | Select-Object Name, InterfaceDescription, Status, MacAddress, LinkSpeed
+
+# 연결된(Up 상태) 어댑터만 필터링
+Get-NetAdapter | Where-Object { $_.Status -eq "Up" }
+```
+
+---
+
+### 0-6) 유선(Ethernet) 네트워크 설정 확인
+
+```powershell
+# 유선 어댑터의 IP, 서브넷, 게이트웨이, DNS 확인
+Get-NetAdapter | Where-Object { $_.InterfaceDescription -match "Ethernet|Realtek|Intel.*Ethernet" -and $_.Status -eq "Up" } |
+    ForEach-Object {
+        $adapter = $_
+        $ip = Get-NetIPAddress -InterfaceIndex $adapter.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue
+        $gw = Get-NetRoute -InterfaceIndex $adapter.InterfaceIndex -DestinationPrefix "0.0.0.0/0" -ErrorAction SilentlyContinue
+        $dns = Get-DnsClientServerAddress -InterfaceIndex $adapter.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue
+        [PSCustomObject]@{
+            어댑터      = $adapter.Name
+            IP주소      = $ip.IPAddress
+            서브넷길이  = $ip.PrefixLength
+            게이트웨이  = $gw.NextHop
+            DNS서버     = ($dns.ServerAddresses -join ", ")
+            MAC주소     = $adapter.MacAddress
+            링크속도    = $adapter.LinkSpeed
+        }
+    } | Format-List
+
+# DHCP 또는 고정 IP 여부 확인
+Get-NetIPConfiguration | Where-Object { $_.InterfaceAlias -match "Ethernet" } |
+    Select-Object InterfaceAlias, IPv4Address, IPv4DefaultGateway, DNSServer
+```
+
+---
+
+### 0-7) 무선(Wi-Fi) 네트워크 설정 확인
+
+```powershell
+# Wi-Fi 어댑터 정보 및 현재 연결 상태
+Get-NetAdapter | Where-Object { $_.InterfaceDescription -match "Wi-Fi|Wireless|802.11" }
+
+# 현재 연결된 Wi-Fi SSID 및 신호 세기
+netsh wlan show interfaces
+
+# 저장된 Wi-Fi 프로필 목록 조회
+netsh wlan show profiles
+
+# 특정 Wi-Fi 프로필의 비밀번호 확인 (관리자 권한 필요)
+# netsh wlan show profile name="<SSID이름>" key=clear
+
+# Wi-Fi 어댑터의 IP 설정 확인
+Get-NetIPConfiguration | Where-Object { $_.InterfaceAlias -match "Wi-Fi|WiFi|Wireless" } |
+    Select-Object InterfaceAlias, IPv4Address, IPv4DefaultGateway, DNSServer
+
+# 주변 Wi-Fi 네트워크 스캔
+netsh wlan show networks mode=bssid
+```
+
+---
+
+### 0-8) IP 주소 및 연결 상태 종합 확인
+
+```powershell
+# 모든 어댑터의 IP 주소 (IPv4/IPv6) 확인
+Get-NetIPAddress | Where-Object { $_.AddressFamily -eq "IPv4" -and $_.IPAddress -ne "127.0.0.1" } |
+    Select-Object InterfaceAlias, IPAddress, PrefixLength, PrefixOrigin |
+    Format-Table -AutoSize
+
+# 라우팅 테이블 확인
+Get-NetRoute -AddressFamily IPv4 | Where-Object { $_.NextHop -ne "0.0.0.0" } |
+    Select-Object DestinationPrefix, NextHop, InterfaceAlias, RouteMetric |
+    Format-Table -AutoSize
+
+# 인터넷 연결 테스트 (Google DNS ping)
+Test-Connection -ComputerName 8.8.8.8 -Count 4
+
+# 특정 도메인 DNS 조회
+Resolve-DnsName google.com
+
+# 열려 있는 포트와 연결 상태 확인
+Get-NetTCPConnection | Where-Object { $_.State -eq "Established" } |
+    Select-Object LocalAddress, LocalPort, RemoteAddress, RemotePort, State |
+    Format-Table -AutoSize
+```
+
+---
+
+### 0-9) 팀 단위 네트워크 공유 설정
+
+팀원들이 같은 LAN(로컬 네트워크) 환경에서 파일·폴더를 공유하거나 서버에 접근할 수 있도록 설정하는 방법입니다.
+
+#### ① 폴더 공유 (SMB/Windows 파일 공유)
+
+```powershell
+# 공유할 폴더 생성 (예: C:\TeamShare)
+New-Item -ItemType Directory -Path "C:\TeamShare" -Force
+
+# SMB 공유 생성 (팀원 전체에게 읽기/쓰기 권한)
+New-SmbShare -Name "TeamShare" -Path "C:\TeamShare" -FullAccess "Everyone"
+
+# 현재 공유 폴더 목록 확인
+Get-SmbShare
+
+# 공유에 접속 중인 세션 확인
+Get-SmbSession
+
+# 공유 폴더에 접근하는 방법 (다른 팀원 PC에서 실행)
+# \\<공유하는PC의IP>\TeamShare  ← 파일 탐색기 주소창에 입력
+# 또는 PowerShell에서:
+# net use Z: \\192.168.1.100\TeamShare
+```
+
+#### ② 공유 폴더 접근 (팀원 PC에서 네트워크 드라이브 연결)
+
+```powershell
+# 네트워크 드라이브 연결 (Z: 드라이브로 매핑)
+New-PSDrive -Name "Z" -PSProvider FileSystem -Root "\\192.168.1.100\TeamShare" -Persist
+
+# 또는 net use 명령어로 연결
+net use Z: \\192.168.1.100\TeamShare /persistent:yes
+
+# 연결된 네트워크 드라이브 확인
+Get-PSDrive -PSProvider FileSystem | Where-Object { $_.DisplayRoot -like "\\*" }
+net use
+
+# 네트워크 드라이브 연결 해제
+Remove-PSDrive -Name "Z"
+net use Z: /delete
+```
+
+#### ③ 팀원 PC 검색 및 연결 가능 여부 확인
+
+```powershell
+# 같은 네트워크의 PC 목록 스캔 (네트워크 대역 192.168.1.0/24 예시)
+1..254 | ForEach-Object {
+    $ip = "192.168.1.$_"
+    if (Test-Connection -ComputerName $ip -Count 1 -Quiet -TimeoutSeconds 1) {
+        [PSCustomObject]@{ IP = $ip; Status = "응답함" }
+    }
+} | Format-Table -AutoSize
+
+# 특정 팀원 PC IP로 Ping 테스트
+Test-Connection -ComputerName 192.168.1.100 -Count 4
+
+# 특정 포트 열려 있는지 확인 (예: 8080 포트)
+Test-NetConnection -ComputerName 192.168.1.100 -Port 8080
+
+# 호스트명으로 IP 조회
+[System.Net.Dns]::GetHostAddresses("팀원PC이름")
+
+# ARP 테이블에서 같은 네트워크 장비 목록 확인
+arp -a
+```
+
+#### ④ Windows 방화벽 설정 (공유 허용)
+
+```powershell
+# 파일 및 프린터 공유 방화벽 규칙 활성화 (공유 서버 역할 PC에서 실행)
+Enable-NetFirewallRule -DisplayGroup "파일 및 프린터 공유"
+
+# 또는 특정 포트 허용 (예: 개발 서버 포트 8080 개방)
+New-NetFirewallRule -DisplayName "DevServer 8080" `
+    -Direction Inbound -Protocol TCP -LocalPort 8080 -Action Allow
+
+# 현재 활성화된 방화벽 규칙 확인
+Get-NetFirewallRule | Where-Object { $_.Enabled -eq "True" -and $_.Direction -eq "Inbound" } |
+    Select-Object DisplayName, Profile, Action |
+    Format-Table -AutoSize
+
+# 방화벽 규칙 삭제 (불필요할 때)
+Remove-NetFirewallRule -DisplayName "DevServer 8080"
+```
+
+#### ⑤ 개발 서버 공유 (팀원이 내 PC의 개발 서버에 접속)
+
+```powershell
+# 내 PC의 현재 IP 주소 확인 (팀원에게 알려줄 IP)
+(Get-NetIPAddress -AddressFamily IPv4 |
+    Where-Object { $_.IPAddress -notmatch "^127\." -and $_.PrefixOrigin -ne "WellKnown" }
+).IPAddress
+
+# Python 개발 서버를 팀 전체에 오픈 (0.0.0.0 바인딩)
+# python -m uvicorn main:app --host 0.0.0.0 --port 8000
+# 팀원은 http://<위에서 확인한 내 IP>:8000 으로 접속
+
+# Node.js 개발 서버 예시
+# npx serve -l 3000 --host 0.0.0.0
+```
+
+#### ⑥ 네트워크 공유 설정 요약표
+
+| 목적 | 방법 | 명령어 예시 |
+|------|------|------------|
+| 폴더 공유 (서버 측) | SMB 공유 생성 | `New-SmbShare -Name "TeamShare" -Path "C:\TeamShare" -FullAccess "Everyone"` |
+| 폴더 접근 (클라이언트) | 네트워크 드라이브 매핑 | `net use Z: \\192.168.1.100\TeamShare` |
+| 팀원 PC 검색 | Ping 스캔 | `Test-Connection -ComputerName 192.168.1.X -Count 1` |
+| 포트 접근 확인 | TCP 연결 테스트 | `Test-NetConnection -ComputerName 192.168.1.100 -Port 8080` |
+| 방화벽 허용 | 인바운드 규칙 추가 | `New-NetFirewallRule -LocalPort 8080 -Action Allow` |
+| 개발 서버 공유 | 0.0.0.0 바인딩 | `uvicorn main:app --host 0.0.0.0 --port 8000` |
+
+---
+
 ## 1) WSL 환경 구축 (Windows 사용자)
 
 ### 설치 목적
