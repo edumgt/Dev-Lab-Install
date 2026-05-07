@@ -97,15 +97,17 @@ docker run --rm -v "$PWD:/app" -w /app python:3.12 python --version
 ### 5-1) 프로세스/WSL 강제 정리 후 재실행
 
 ```powershell
-# Docker 관련 프로세스 종료
-Get-Process "Docker Desktop","com.docker.backend","com.docker.proxy" -ErrorAction SilentlyContinue |
-    Stop-Process -Force
+# Docker 관련 프로세스 종료 (존재하는 프로세스만 종료)
+foreach ($p in "Docker Desktop","com.docker.backend","com.docker.proxy") {
+    Get-Process -Name $p -ErrorAction SilentlyContinue | Stop-Process -Force
+}
 
 # WSL 종료
 wsl --shutdown
 
-# Docker 서비스 재시작
-Restart-Service com.docker.service -ErrorAction SilentlyContinue
+# Docker 서비스 재시작 (환경별 서비스명 차이 대응)
+$dockerSvc = Get-Service | Where-Object { $_.Name -like "*docker*" -or $_.DisplayName -like "*docker*" }
+$dockerSvc | ForEach-Object { Restart-Service -Name $_.Name -ErrorAction SilentlyContinue }
 
 # Docker Desktop 재실행
 Start-Process "$Env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
@@ -182,4 +184,3 @@ Rename-Item "$Env:LocalAppData\Docker" "$Env:LocalAppData\Docker.bak.$ts" -Error
 - [ ] Docker Desktop WSL Integration 활성화
 - [ ] PowerShell/WSL 모두에서 `docker run --rm hello-world` 성공
 - [ ] Docker Desktop UI 미출력 시 5장 순서대로 점검 완료
-
