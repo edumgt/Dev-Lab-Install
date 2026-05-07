@@ -184,3 +184,12 @@ Rename-Item "$Env:LocalAppData\Docker" "$Env:LocalAppData\Docker.bak.$ts" -Error
 - [ ] Docker Desktop WSL Integration 활성화
 - [ ] PowerShell/WSL 모두에서 `docker run --rm hello-world` 성공
 - [ ] Docker Desktop UI 미출력 시 5장 순서대로 점검 완료
+
+
+## 📺 관련 유튜브 동영상
+
+아래 링크를 클릭하면 유튜브에서 관련 동영상을 검색할 수 있습니다.
+
+- 🔍 [Docker 설치 WSL2 가이드 검색](https://www.youtube.com/results?search_query=Docker+설치+WSL2+Windows)
+- 🔍 [Docker Desktop 설치 방법 검색](https://www.youtube.com/results?search_query=Docker+Desktop+설치+방법)
+- 🔍 [WSL2 Ubuntu 설정 검색](https://www.youtube.com/results?search_query=WSL2+Ubuntu+설정)

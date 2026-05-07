@@ -2606,3 +2606,14 @@ code --install-extension Continue.continue
 ```
 
 ---
+
+## 📺 관련 유튜브 동영상
+
+아래 링크를 클릭하면 유튜브에서 관련 동영상을 검색할 수 있습니다.
+
+- 🔍 [개발환경 기본 설정 검색](https://www.youtube.com/results?search_query=개발환경+기본+설정)
+- 🔍 [PowerShell 개발환경 구성 검색](https://www.youtube.com/results?search_query=PowerShell+개발환경+구성)
+- 🔍 [WSL2 개발환경 설정 검색](https://www.youtube.com/results?search_query=WSL2+개발환경+설정)
+- 🔍 [Git GitHub 사용법 검색](https://www.youtube.com/results?search_query=Git+GitHub+사용법)
+- 🔍 [Node.js Python Java 개발환경 검색](https://www.youtube.com/results?search_query=Node.js+Python+Java+개발환경)
+- 🔍 [GitHub Copilot AI 코딩 검색](https://www.youtube.com/results?search_query=GitHub+Copilot+AI+코딩)
