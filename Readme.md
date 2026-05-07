@@ -634,7 +634,11 @@ npm config set init-license "MIT"
 
 ## 4) Docker 환경 구축
 
-### 설치 순서 (Docker Desktop 기준)
+Docker 설치/호환성/장애조치 내용은 별도 폴더 문서로 분리했습니다.
+
+- 문서 경로: [`docker-setup/README.md`](docker-setup/README.md)
+
+### 빠른 설치 순서 (Docker Desktop 기준)
 1. Docker Desktop 다운로드 및 설치
 2. 설치 중 WSL2 연동 옵션 활성화
 3. 설치 후 Docker Desktop 실행
