@@ -1,9 +1,2 @@
-/target
-**/target/
-/Youtube
-/Doc
-/Youtube2
-/Youtube3
-
 *.key
 *.json
