@@ -4,7 +4,7 @@
 
 | ◀ 이전 강의 | 📚 커리큘럼 (1 / 10) | 다음 강의 ▶ |
 |:---|:---:|---:|
-| — (시작) | **개발환경 기본 설정** | [Python 기초 실습 →](https://github.com/edumgt/python-basic-lab) |
+| — (시작) | **개발환경 기본 설정** | [투자분석 기초 방법론→](https://github.com/edumgt/python-quant) |
 
 ---
 
