@@ -849,6 +849,157 @@ docker login -u <dockerhub-username>
 - [ ] AWS 계정 생성 및 루트 MFA 활성화
 - [ ] 복구 코드/백업 코드 오프라인 보관
 
+### 8-7) Git · GitHub 실무 사용 가이드 (브랜치 · 머지 · PR · Fork · 공개범위 · Settings)
+
+#### A. 기본 Git 초기 설정
+```bash
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+git config --global init.defaultBranch main
+git config --global core.autocrlf true   # Windows 권장
+```
+
+```bash
+# 현재 설정 확인
+git config --list
+```
+
+#### B. 브랜치 전략 (권장)
+- `main`: 배포 가능한 안정 브랜치
+- `develop`(선택): 통합 개발 브랜치
+- `feature/*`: 기능 개발
+- `fix/*` 또는 `hotfix/*`: 버그 수정
+- `docs/*`: 문서 변경
+
+브랜치 생성/이동:
+```bash
+git checkout -b feature/login-api
+# 또는
+git switch -c feature/login-api
+```
+
+작업 후 원격 반영:
+```bash
+git add .
+git commit -m "feat: add login api"
+git push -u origin feature/login-api
+```
+
+#### C. Merge 방법 정리
+GitHub PR 머지 방식은 보통 3가지입니다.
+
+1. **Create a merge commit**
+   - 모든 커밋 이력을 그대로 유지
+   - 협업 이력 추적이 쉬움
+2. **Squash and merge**
+   - 여러 커밋을 1개로 합쳐 `main` 히스토리를 깔끔하게 유지
+   - 작은 단위 커밋이 많은 팀에 권장
+3. **Rebase and merge**
+   - 머지 커밋 없이 직선 히스토리 유지
+   - 커밋 순서/의미를 유지하고 싶은 경우 사용
+
+로컬에서 충돌 해결 + 병합 예시:
+```bash
+git checkout main
+git pull origin main
+git checkout feature/login-api
+git merge main
+# 충돌 해결 후
+git add .
+git commit
+git push
+```
+
+#### D. Pull Request(PR) 표준 절차
+1. 작업 브랜치에서 기능 구현 + 테스트 완료
+2. 최신 `main` 반영(merge 또는 rebase) 후 충돌 해결
+3. 원격 브랜치 push
+4. GitHub에서 **Compare & pull request** 클릭
+5. PR 템플릿 기준으로 목적/변경점/테스트 결과 작성
+6. 리뷰어 지정(Assignees/Reviewers), 라벨(Label), 이슈 연결
+7. CI 통과 + 리뷰 승인 후 머지
+8. 머지 후 작업 브랜치 삭제
+
+PR 제목 예시:
+- `feat: 사용자 로그인 API 추가`
+- `fix: 주문 조회 시 NPE 오류 수정`
+- `docs: GitHub 운영 가이드 보강`
+
+#### E. GitHub Forking 워크플로우 (오픈소스 기여 시 필수)
+1. 원본 저장소(Upstream)를 GitHub에서 **Fork**
+2. 내 계정의 Fork 저장소를 로컬에 clone
+3. `upstream` 원격 추가
+
+```bash
+git clone https://github.com/<my-id>/<fork-repo>.git
+cd <fork-repo>
+git remote add upstream https://github.com/<org-or-owner>/<original-repo>.git
+git remote -v
+```
+
+4. 기능 브랜치 생성 후 작업/커밋/push
+5. 내 Fork 저장소에서 원본 저장소로 PR 생성
+
+Upstream 동기화:
+```bash
+git fetch upstream
+git checkout main
+git merge upstream/main
+git push origin main
+```
+
+#### F. Public / Private 저장소 사용 기준
+| 구분 | Public 저장소 | Private 저장소 |
+|------|---------------|----------------|
+| 가시성 | 누구나 코드 열람 가능 | 권한 있는 사용자만 접근 |
+| 권장 용도 | 오픈소스, 포트폴리오, 공개 학습 자료 | 사내 코드, 과제/시험, 고객 데이터 포함 프로젝트 |
+| 주의사항 | 비밀정보 절대 커밋 금지 | 멤버 권한 최소화 원칙 적용 |
+
+공통 보안 원칙:
+- 토큰/비밀번호/API 키는 코드에 직접 저장하지 않기
+- `.env`, 인증서, 키 파일은 `.gitignore`에 등록
+- Secret Scanning / Dependabot / Code Scanning 활성화
+
+#### G. GitHub Settings 핵심 설정 체크리스트
+**(1) 개인 계정 Settings**
+- **Password and authentication**: 2FA 필수
+- **SSH and GPG keys**: SSH 키 등록 후 비밀번호 없는 안전한 push
+- **Notifications**: 메일/웹 알림 최적화
+- **Developer settings → Personal access tokens**: 최소 권한 토큰 발급
+
+**(2) 저장소 Settings**
+- **General**
+  - 기본 브랜치(`main`) 확인
+  - 템플릿(이슈/PR) 적용
+- **Collaborators and teams**
+  - 필요한 사용자만 최소 권한 부여
+- **Branches / Rulesets**
+  - `main` 보호 규칙 설정:
+    - PR 필수
+    - 최소 1명 이상 리뷰 승인
+    - 상태 체크(CI) 통과 필수
+    - 강제 푸시 금지
+    - 브랜치 삭제/직접 푸시 제한
+- **Security**
+  - Dependabot alerts / updates 활성화
+  - Secret scanning 활성화
+  - Code scanning(CodeQL 등) 활성화
+- **Actions**
+  - 허용 액션 범위(Organization/Marketplace/Local) 정책 설정
+  - 외부 PR에 대한 워크플로우 실행 정책 점검
+
+**(3) 조직(Organization) Settings**
+- SSO, 멤버십 승인 정책, 저장소 생성 권한 제한
+- 팀 단위 권한 관리(Read/Triage/Write/Maintain/Admin)
+- 감사 로그(Audit log) 주기적 점검
+
+#### H. 팀 운영 시 권장 규칙 요약
+- 기능 개발은 항상 브랜치에서 진행 (`main` 직접 작업 금지)
+- PR 단위로 코드 리뷰 후 머지
+- 머지 방식은 팀 규칙으로 통일 (예: 기본 `Squash and merge`)
+- 이슈 번호를 커밋/PR에 연결 (`fixes #123`)
+- 월 1회 이상 Settings/권한/보안 경고 점검
+
 ---
 
 ## 9) VirtualBox 설치 및 VM 네트워크 설정 (Windows)
