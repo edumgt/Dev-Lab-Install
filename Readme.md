@@ -62,6 +62,12 @@
 
 ---
 
+## AI 기반 비용 체크는 매일 오전 오후 체크해야 합니다.
+
+- https://github.com/settings/billing/usage
+- https://platform.openai.com/usage
+- https://claude.ai/settings/usage
+
 ## 0) PC 기본 정보 및 네트워크 환경 확인 (PowerShell)
 
 > 팀 프로젝트를 시작하기 전, 본인 PC의 하드웨어 사양과 네트워크 환경을 파악해두면 개발 환경 구성 및 팀원 간 자원 공유가 훨씬 수월해집니다.  
