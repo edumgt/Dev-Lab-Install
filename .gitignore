@@ -1,3 +1,5 @@
 *.key
 *.json
 lab03-java-app/target/
+.claude/
+**/node_modules/**
